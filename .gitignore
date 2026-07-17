@@ -1,0 +1,21 @@
+# Python temporary files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment & IDE
+.venv/
+env/
+.vscode/
+.idea/
+
+# Django files
+*.log
+*.sqlite3
+db.sqlite3
+
+# AI model weights & outputs (so repo stays lightweight)
+*.pt
+detected_output.jpg
+bus.jpg
+clearing.jpg
