@@ -1,89 +1,83 @@
 # IntelliDRAIN: AI-Powered Drain Blockage Detection System
 ## Progress Report: Phase 1 & Phase 2 Completion
 
-### 🌟 Project Overview
-> [!NOTE]
-> **What is IntelliDRAIN?**
-> IntelliDRAIN is a smart system that monitors street drains for trash. It uses an AI camera to look at the drain grate, calculate how much of the drain is covered in trash, and warn city officials if there is a risk of flooding.
+### Project Overview
+IntelliDRAIN is an automated drainage monitoring and flood-risk assessment system. By combining deep learning object detection (YOLOv8) with a web-accessible Django REST API backend, the system enables real-time visual analysis of drainage grates. The primary goal is to identify debris accumulation (garbage) on drain grates, calculate the percentage of blockage, and assess the threat of local flooding (Low, Moderate, High, Critical).
 
-Currently, we have completed the first two phases of the project:
-1. **Phase 1: The AI Brain (The Blockage Engine)** — Teaching the AI to identify trash in pictures and calculate how blocked a drain is.
-2. **Phase 2: The Web Connection (The API Backend)** — Packaging the AI into a web service so smart cameras can send photos and get immediate feedback.
+Currently, Phase 1 (AI Blockage Engine Core Prototype) and Phase 2 (Django REST API Integration) are fully implemented, verified, and ready for deployment.
 
----
+### Phase 1: YOLO AI Blockage Engine
+The objective of Phase 1 was to design and prototype the core computer vision logic to detect debris and estimate blockage.
 
-### 🧠 Phase 1: The AI Blockage Engine (How it Detects Trash)
-**Goal**: Build the core vision code that looks at a drain grate, spots garbage, and estimates how much of the grate is blocked.
+#### Accomplishments
+- YOLOv8 Integration: Integrated the Ultralytics YOLOv8 network (yolov8n.pt), which provides fast inference speeds suitable for edge and real-time environments.
+- Debris Class Filtering: Configured the AI model to target specific garbage classes:
+  - bottle (plastic bottles, cans)
+  - cup (disposable cups)
+  - handbag (discarded plastic bags, wrappers)
+  - bowl (discarded food containers)
+- Blockage Estimation Algorithm:
+  - Formulated a bounding-box area-summation logic to calculate total debris coverage in pixels.
+  - Divided the combined area of target garbage items by the total grate area to estimate a Blockage Percentage.
+- Windows Environment Compatibility: Implemented dynamic binding of critical PyTorch DLLs (specifically c10.dll) in the startup sequence, ensuring execution on Windows host operating systems without library load failures.
+- Verification Prototype: Designed [detect.py](file:///c:/Users/admin/Desktop/INTELLIDRAIN-AI/detect.py), a standalone CLI script to run and test this AI logic locally on sample images.
 
-#### What We Accomplished:
-* **Selected the AI Model**: We integrated YOLOv8 (`yolov8n.pt`). Think of this as a super-fast digital eye trained to spot objects in a fraction of a second.
-* **Targeted Common Litter**: We configured the AI to focus specifically on trash classes like:
-  * 🗑️ `bottle` (plastic bottles, soda cans, etc.)
-  * 🥤 `cup` (disposable cups)
-  * 👜 `handbag` (discarded plastic bags, sacks)
-  * 🥣 `bowl` (food containers)
-* **Calculated Blockage Percentage**:
-  * The AI draws a bounding box around each piece of trash it finds.
-  * It measures the size of each box in pixels, adds them all together, and divides that by the size of the drain.
-  * For example, if the trash boxes cover half of the drain image, the blockage is reported as **50%**.
-* **Created a Prototype Script**: Built [detect.py](file:///c:/Users/admin/Desktop/INTELLIDRAIN-AI/detect.py), a standalone CLI script to run and test this AI logic locally on sample images.
+### Phase 2: Django REST API Integration
+The objective of Phase 2 was to package the core detection logic into a scalable, high-performance web API that can be consumed by smart drain cameras or city management software.
 
----
+#### Accomplishments
+- Django Project Structure: Created the Django project `intellidrain` and developed a modular `api` app.
+- Memory-Efficient Lazy Loading: Created [get_yolo_model](file:///c:/Users/admin/Desktop/INTELLIDRAIN-AI/api/detector.py#L9) inside [api/detector.py](file:///c:/Users/admin/Desktop/INTELLIDRAIN-AI/api/detector.py), which loads the YOLO model once on the first request and caches it in memory, preventing system resource depletion from redundant reload operations.
+- Dynamic Grate Scaling: Refactored the blockage algorithm in [calculate_blockage_and_risk](file:///c:/Users/admin/Desktop/INTELLIDRAIN-AI/api/detector.py#L32) to extract dimensions dynamically from uploaded images, ensuring calculations automatically adjust to different camera resolutions.
+- RESTful Endpoint Implementation: Created [BlockageDetectionView](file:///c:/Users/admin/Desktop/INTELLIDRAIN-AI/api/views.py#L10) in [api/views.py](file:///c:/Users/admin/Desktop/INTELLIDRAIN-AI/api/views.py). It:
+  - Accepts multipart uploads via POST to /api/detect/.
+  - Validates files for image integrity and converts files (such as PNG or Grayscale) to standard RGB format.
+  - Returns detailed object bounding boxes, confidence ratings, exact areas, calculated blockage percentage, and flood risk level.
+- Risk Assessment Matrix:
+  - Implemented the following logic to translate mathematical blockage to action-oriented threat categories:
+    - Blockage < 25%: Low Risk
+    - Blockage 25% - 49%: Moderate Risk
+    - Blockage 50% - 74%: High Risk (intervention recommended)
+    - Blockage >= 75%: Critical Risk (immediate clearing required)
 
-### 🌐 Phase 2: Web API Integration (Connecting the AI to the Web)
-**Goal**: Make the AI accessible over the web so that smart cameras stationed at street corners can upload photos and instantly receive blockage reports.
-
-#### What We Accomplished:
-* **Built a Django Server**: Set up the main server structure using the Django framework.
-* **Smart Memory Saving**: AI models are heavy. Instead of loading the model from scratch every time someone uploads an image, we built a "lazy loader" ([get_yolo_model](file:///c:/Users/admin/Desktop/INTELLIDRAIN-AI/api/detector.py#L9)). It loads the model into the server's memory once and reuses it, making request responses incredibly fast.
-* **Auto-Scaling Calculations**: Refactored the core logic ([calculate_blockage_and_risk](file:///c:/Users/admin/Desktop/INTELLIDRAIN-AI/api/detector.py#L32)) so it automatically adapts to any photo resolution sent by the camera, rather than using a hardcoded image size.
-* **Created the Upload Link**: Built [BlockageDetectionView](file:///c:/Users/admin/Desktop/INTELLIDRAIN-AI/api/views.py#L10) at `/api/detect/`. It receives images, validates that they are real image files, formats them for the AI, and outputs a simple JSON summary.
-* **Designed a Threat Rating Matrix**:
-  * The server translates the blockage percentage into a clear risk level:
-    * 🟢 **Blockage < 25%**: `Low` Risk — Drain is clean.
-    * 🟡 **Blockage 25% - 49%**: `Moderate` Risk — Debris starting to collect.
-    * 🟠 **Blockage 50% - 74%**: `High` Risk — Drain is half-covered; maintenance recommended.
-    * 🔴 **Blockage >= 75%**: `Critical` Risk — Drain is heavily blocked; flooding is highly likely if it rains.
-
----
-
-### 🗺️ System Flow (How Data Moves)
-Here is a simple map of what happens when a camera takes a photo:
+### Technical Architecture
+The data flow of the system is illustrated in the diagram below:
 
 ```mermaid
 graph TD
-    A[Camera takes photo of drain] -->|1. Uploads photo via Web API| B(Django Server)
-    B -->|2. Validates image| C{Is image okay?}
-    C -->|No| D[Return error message]
-    C -->|Yes| E[Run AI Detection]
-    E -->|3. Find bottles, cups, bags| F(YOLOv8 AI Model)
-    F -->|4. Sum up all box areas| G[Calculate Blockage %]
-    G -->|5. Determine threat category| H[Low / Moderate / High / Critical]
-    H -->|6. Return final JSON report| I[Camera / City Dashboard receives data]
+    A[Camera / Edge Device] -->|1. POST image to /api/detect/| B(BlockageDetectionView)
+    B -->|2. Validate & Convert to RGB| C{Is Valid Image?}
+    C -->|No| D[Return HTTP 400 Error]
+    C -->|Yes| E[Call calculate_blockage_and_risk]
+    E -->|3. Query YOLO Model| F(get_yolo_model)
+    F -->|4. Run YOLOv8 Inference| G[Identify Garbage Classes]
+    G -->|5. Sum Bounding Box Areas| H[Calculate Blockage %]
+    H -->|6. Map to Risk Levels| I[Formulate Risk Rating]
+    I -->|7. JSON Serialization| J[Return HTTP 200 Response]
 ```
 
----
+### API Reference
+- Endpoint: /api/detect/
+- Method: POST
+- Content-Type: multipart/form-data
 
-### 🔌 API Reference (For Developers)
-To analyze an image, you make a `POST` request to the server:
+#### Request Parameters
+| Parameter | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| image | File | Yes | The image of the drainage grate to analyze. |
 
-- **Web Link**: `/api/detect/`
-- **Method**: `POST`
-- **Upload Key**: `image` (the file you are uploading)
-
-#### Output Example:
-The server returns a structured report that looks like this:
+#### Success Response (HTTP 200 OK)
 ```json
 {
   "status": "success",
-  "blockage_percentage": 42.15,      // 42% of the drain is covered in trash
-  "flood_risk": "Moderate",          // Current danger level
-  "total_garbage_area_px": 172646.0, // Area of garbage in pixels
-  "total_drain_area_px": 409600,     // Total size of the image
-  "detections": [                    // Detailed list of what the AI found
+  "blockage_percentage": 42.15,
+  "flood_risk": "Moderate",
+  "total_garbage_area_px": 172646.0,
+  "total_drain_area_px": 409600,
+  "detections": [
     {
       "class": "bottle",
-      "confidence": 0.89,            // 89% sure it is a bottle
+      "confidence": 0.89,
       "box": [120.5, 230.1, 280.4, 450.9],
       "area_px": 35328.0
     }
@@ -91,19 +85,20 @@ The server returns a structured report that looks like this:
 }
 ```
 
----
+### Workspace File Structure
+The following files comprise the current implementation:
+- [detect.py](file:///c:/Users/admin/Desktop/INTELLIDRAIN-AI/detect.py) - Standalone CLI prototype script.
+- [api/views.py](file:///c:/Users/admin/Desktop/INTELLIDRAIN-AI/api/views.py) - Handles incoming image uploads and web request validation.
+- [api/detector.py](file:///c:/Users/admin/Desktop/INTELLIDRAIN-AI/api/detector.py) - Coordinates AI loading, object detection, and risk assessment logic.
+- [api/urls.py](file:///c:/Users/admin/Desktop/INTELLIDRAIN-AI/api/urls.py) and [intellidrain/urls.py](file:///c:/Users/admin/Desktop/INTELLIDRAIN-AI/intellidrain/urls.py) - Route configurations mapping request endpoints.
+- [intellidrain/settings.py](file:///c:/Users/admin/Desktop/INTELLIDRAIN-AI/intellidrain/settings.py) - Core Django system settings.
 
-### 📂 File Structure (Where Code Lives)
-Here is where the code is located:
-* [detect.py](file:///c:/Users/admin/Desktop/INTELLIDRAIN-AI/detect.py) — The prototype testing script.
-* [api/views.py](file:///c:/Users/admin/Desktop/INTELLIDRAIN-AI/api/views.py) — Handles incoming image uploads and web request validation.
-* [api/detector.py](file:///c:/Users/admin/Desktop/INTELLIDRAIN-AI/api/detector.py) — Coordinates the AI loading, object search, and risk assessment math.
-* [api/urls.py](file:///c:/Users/admin/Desktop/INTELLIDRAIN-AI/api/urls.py) & [intellidrain/urls.py](file:///c:/Users/admin/Desktop/INTELLIDRAIN-AI/intellidrain/urls.py) — Configures web links.
-* [intellidrain/settings.py](file:///c:/Users/admin/Desktop/INTELLIDRAIN-AI/intellidrain/settings.py) — System configuration settings.
+### Verification Results
+During initial testing:
+- Running `python detect.py` successfully triggers detection, loads target weights, identifies items like bottles/cups, and prints calculated blockage.
+- Sending sample images via REST clients to `/api/detect/` successfully returns structured JSON, parsing image boundaries dynamically and mapping coordinates correctly.
 
----
-
-### 🚀 What's Next? (Phase 3)
-1. **Save History**: Add a database to store past detection results so we can track blockage trends over time.
-2. **Send Alerts**: Automatically send email or SMS alerts to municipal workers when a drain reaches `Critical` status.
-3. **Map Dashboard**: Build a simple map website to show all drains in the city and color-code them by their current risk level.
+### Next Steps (Phase 3)
+1. Database Integration: Set up Django models to save historical detections, allowing time-series monitoring of blockage rate trends.
+2. Alert Dispatch Subsystem: Integrate notification capabilities (e.g. Email/SMS) triggered whenever a grate transitions into a Critical or High risk status.
+3. Web Dashboard: Construct a frontend map UI to display active drain locations, current risk levels, and visual highlights of detected garbage.
